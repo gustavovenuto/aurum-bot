@@ -29,17 +29,21 @@ def call_llm(prompt):
 def solve_challenge(data):
     q = data.get("question", "")
     log(f"Challenge: {q}")
-    q = q.replace("fewer.", "fewer").replace("fewer", "fewer")
-    q = q.replace("doubles its", "double").replace("doubles", "double")
-    n = re.findall(r'\d+', q)
-    if "double" in q or "doubles" in q:
-        if n:
-            return int(n[0]) * 2 + (int(n[1]) if len(n) > 1 else 0)
-    if "fewer" in q or "fewer" in q:
-        if len(n) >= 2:
-            return int(n[0]) - int(n[1])
-        return 4
-    return int(n[0]) if n else 0
+    prompt = f"Answer ONLY with a single integer. No explanation. Question: {q}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    for attempt in range(3):
+        try:
+            r = requests.post(url, json=payload, timeout=15)
+            if r.status_code == 429:
+                time.sleep(5)
+                continue
+            nums = re.findall(r'-?\d+', r.json()["candidates"][0]["content"]["parts"][0]["text"])
+            if nums:
+                return int(nums[0])
+        except:
+            time.sleep(3)
+    return 0
 
 def checkin():
     r = requests.post(f"{AH_BASE}/agents/checkin", headers=AH_HEADERS)
