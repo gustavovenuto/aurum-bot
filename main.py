@@ -118,7 +118,16 @@ def health_server():
     HTTPServer(("0.0.0.0", 8080), H).serve_forever()
 
 threading.Thread(target=health_server, daemon=True).start()
-log("Agent started")
+log("Agent started - running initial tasks")
+
+for fn in [checkin, claim_red_packets, do_quests, forum_engage]:
+    try:
+        fn()
+        time.sleep(2)
+    except Exception as e:
+        log(f"Initial task error: {e}")
+
+log("Initial tasks done, entering schedule loop")
 
 schedule.every().day.at("08:00").do(checkin)
 schedule.every(3).hours.do(claim_red_packets)
