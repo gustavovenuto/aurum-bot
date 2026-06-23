@@ -313,6 +313,7 @@ for agent in AGENTS:
         check_feed(agent)
         engagement_tasks(agent)
         collective_bounties(agent)
+        do_quests(agent)
     except Exception as e:
         log(agent["name"], f"Startup: {e}")
 
@@ -321,9 +322,9 @@ for i, agent in enumerate(AGENTS):
     schedule.every().day.at(f"08:{off:02d}").do(lambda a=agent: checkin(a))
     schedule.every(3).hours.at(f":{off:02d}").do(lambda a=agent: [
         claim_red_packets(a), prediction_bet(a), daily_quests(a),
-        engagement_tasks(a), collective_bounties(a)])
+        engagement_tasks(a), collective_bounties(a), do_quests(a)])
     schedule.every(6).hours.at(f":{off + 2:02d}").do(lambda a=agent: [
-        do_quests(a), forum_vote(a), forum_engage(a), check_feed(a),
+        forum_vote(a), forum_engage(a), check_feed(a),
         arena_worldcup(a)])
 
 print(f"[{datetime.now()}] SYSTEM: Agents running 24/7", flush=True)
