@@ -55,15 +55,12 @@ def api_post(agent, path, data=None, retries=3):
     return {}
 
 def call_llm(prompt, retries=2):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
-    payload = {"contents": [{"parts": [{"text": prompt}]}],
-               "safetySettings": [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                                  {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                                  {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                                  {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}]}
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    headers = {"Content-Type": "application/json", "X-goog-api-key": GEMINI_KEY}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
     for i in range(retries):
         try:
-            r = requests.post(url, json=payload, timeout=30)
+            r = requests.post(url, json=payload, headers=headers, timeout=60)
             if r.status_code == 429:
                 time.sleep(10)
                 continue

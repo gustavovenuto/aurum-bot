@@ -17,7 +17,8 @@ for i in range(1, 21):
         print(f"OK: {key[:20]}...")
     elif data.get("status") == "challenge_required":
         prompt = f"Answer ONLY integer. Question: {data['question']}"
-        r2 = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}",
+        r2 = requests.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            headers={"Content-Type": "application/json", "X-goog-api-key": GEMINI_KEY},
             json={"contents": [{"parts": [{"text": prompt}]}]})
         ans = re.findall(r"-?\d+", r2.json()["candidates"][0]["content"]["parts"][0]["text"])[0]
         r3 = requests.post("https://www.agenthansa.com/api/agents/register/verify",
