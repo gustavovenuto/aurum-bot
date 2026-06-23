@@ -108,22 +108,59 @@ def prediction_bet(agent):
             return
         m = markets[0]
         r2 = requests.post(f"{AH_BASE}/prediction/markets/{m['id']}/bet", headers=h(agent),
-            json={"outcome": "yes", "stake": 0.50, "stake_currency": "usdc"})
+            json={"outcome": "yes" if random.random() > 0.5 else "no", "stake": 10, "stake_currency": "xp"})
         log(agent["name"], f"Prediction bet: {r2.json().get('status', 'done')}")
     except Exception as e:
         log(agent["name"], f"Prediction error: {e}")
 
+def forum_create_post(agent):
+    try:
+        title = call_llm("Create a short forum post title about AI agents and automation (max 80 chars)")
+        body = call_llm("Write a 120-word forum post about AI agent development experiences")
+        if title and body:
+            r = requests.post(f"{AH_BASE}/forum", headers=h(agent),
+                json={"title": title[:80], "body": body, "category": "review"})
+            log(agent["name"], f"Forum post created: {r.json().get('id', 'ok')}")
+    except Exception as e:
+        log(agent["name"], f"Forum create error: {e}")
+
+def read_forum_digest(agent):
+    try:
+        requests.get(f"{AH_BASE}/forum/digest", headers=h(agent), timeout=10)
+        log(agent["name"], "Forum digest read")
+    except:
+        pass
+
+def generate_referral(agent):
+    try:
+        r = requests.get(f"{AH_BASE}/offers", headers=h(agent), timeout=10)
+        offers = r.json().get("data", [])
+        if offers:
+            oid = offers[0].get("id")
+            r2 = requests.post(f"{AH_BASE}/offers/{oid}/ref", headers=h(agent))
+            log(agent["name"], f"Referral: {r2.json().get('status', 'generated')}")
+    except Exception as e:
+        log(agent["name"], f"Referral error: {e}")
+
 def daily_quests(agent):
     try:
         r = requests.get(f"{AH_BASE}/agents/daily-quests", headers=h(agent), timeout=10)
-        quests = r.json().get("data", [])
-        log(agent["name"], f"Daily quests: {len(quests)} available")
+        dq = r.json()
+        quests = dq.get("quests", [])
+        done = sum(1 for q in quests if q.get("completed"))
+        log(agent["name"], f"Daily quests: {done}/{len(quests)} completed")
+        if dq.get("all_completed") and not dq.get("bonus_claimed"):
+            requests.post(f"{AH_BASE}/agents/daily-quests/claim", headers=h(agent))
+            log(agent["name"], "Daily quests bonus claimed!")
         for q in quests:
-            content = call_llm(f"Quick answer for: {q.get('title','')}")
-            if content:
-                requests.post(f"{AH_BASE}/side-quests/submit", headers=h(agent),
-                    json={"quest_id": q.get("id"), "content": content})
-                time.sleep(0.3)
+            if q.get("completed"):
+                continue
+            qid = q.get("id")
+            if qid == "distribute":
+                generate_referral(agent)
+            elif qid == "digest":
+                read_forum_digest(agent)
+            time.sleep(0.3)
     except Exception as e:
         log(agent["name"], f"Daily quests error: {e}")
 
@@ -131,12 +168,13 @@ def forum_vote(agent):
     try:
         posts = requests.get(f"{AH_BASE}/forum", headers=h(agent), timeout=10).json()
         data = posts.get("data", [])
-        log(agent["name"], f"Forum posts found: {len(data)}")
-        for post in data[:5]:
+        log(agent["name"], f"Forum posts: {len(data)}")
+        for i, post in enumerate(data[:10]):
+            direction = "up" if i < 5 else "down"
             requests.post(f"{AH_BASE}/forum/{post.get('id')}/vote", headers=h(agent),
-                json={"direction": "up"})
+                json={"direction": direction})
             time.sleep(0.2)
-        log(agent["name"], f"Forum votes: {min(5, len(data))} done")
+        log(agent["name"], f"Forum votes: {min(10, len(data))}")
     except Exception as e:
         log(agent["name"], f"Vote error: {e}")
 
@@ -189,25 +227,15 @@ def forum_engage(agent):
     except Exception as e:
         log(agent["name"], f"Forum error: {e}")
 
-EMAIL_SENT = set()
 def email_verify(agent):
-    if agent["name"] in EMAIL_SENT:
-        return
     try:
-        r = requests.get(f"{AH_BASE}/agents/me/email/status", headers=h(agent), timeout=10)
-        status = r.json()
-        if status.get("verified"):
-            EMAIL_SENT.add(agent["name"])
+        r = requests.get(f"{AH_BASE}/agents/me", headers=h(agent), timeout=10)
+        if r.json().get("email_verified"):
             log(agent["name"], "Email already verified")
-            return
-        if status.get("status") in ("pending", "sent"):
-            EMAIL_SENT.add(agent["name"])
-            log(agent["name"], f"Email already sent ({status.get('status')})")
             return
         requests.post(f"{AH_BASE}/agents/me/email/start", headers=h(agent),
             json={"email": "gugu.venutto@gmail.com"})
-        log(agent["name"], "Email verification sent (check inbox and click link)")
-        EMAIL_SENT.add(agent["name"])
+        log(agent["name"], "Email verification sent (check inbox)")
     except:
         pass
 
@@ -222,9 +250,13 @@ def run_agent_tasks(agent):
     time.sleep(random.uniform(1, 3))
     do_quests(agent)
     time.sleep(random.uniform(1, 3))
+    forum_create_post(agent)
+    time.sleep(random.uniform(1, 3))
     forum_vote(agent)
     time.sleep(random.uniform(1, 3))
     forum_engage(agent)
+    time.sleep(random.uniform(1, 3))
+    read_forum_digest(agent)
 
 print(f"[{datetime.now()}] SYSTEM: Starting {len(AGENTS)} agents", flush=True)
 
