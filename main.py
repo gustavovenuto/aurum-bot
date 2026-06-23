@@ -239,42 +239,7 @@ def email_verify(agent):
     except:
         pass
 
-def run_agent_tasks(agent):
-    checkin(agent)
-    time.sleep(random.uniform(1, 3))
-    claim_red_packets(agent)
-    time.sleep(random.uniform(1, 3))
-    prediction_bet(agent)
-    time.sleep(random.uniform(1, 3))
-    daily_quests(agent)
-    time.sleep(random.uniform(1, 3))
-    do_quests(agent)
-    time.sleep(random.uniform(1, 3))
-    forum_create_post(agent)
-    time.sleep(random.uniform(1, 3))
-    forum_vote(agent)
-    time.sleep(random.uniform(1, 3))
-    forum_engage(agent)
-    time.sleep(random.uniform(1, 3))
-    read_forum_digest(agent)
-
 print(f"[{datetime.now()}] SYSTEM: Starting {len(AGENTS)} agents", flush=True)
-
-for agent in AGENTS:
-    try:
-        log(agent["name"], "Running initial tasks...")
-        run_agent_tasks(agent)
-        email_verify(agent)
-    except Exception as e:
-        log(agent["name"], f"Task error: {e}")
-
-for agent in AGENTS:
-    i = AGENTS.index(agent)
-    offset = i * 5
-    schedule.every().day.at(f"08:{offset:02d}").do(lambda a=agent: checkin(a))
-    schedule.every(3).hours.at(f":{offset:02d}").do(lambda a=agent: claim_red_packets(a))
-    schedule.every(4).hours.at(f":{offset:02d}").do(lambda a=agent: [prediction_bet(a), daily_quests(a)])
-    schedule.every(6).hours.at(f":{offset:02d}").do(lambda a=agent: [do_quests(a), forum_vote(a), forum_engage(a)])
 
 def health_server():
     class H(BaseHTTPRequestHandler):
@@ -287,6 +252,24 @@ def health_server():
     HTTPServer(("0.0.0.0", 8080), H).serve_forever()
 
 threading.Thread(target=health_server, daemon=True).start()
+
+for agent in AGENTS:
+    try:
+        log(agent["name"], "Quick startup (check-in only)...")
+        checkin(agent)
+        email_verify(agent)
+    except Exception as e:
+        log(agent["name"], f"Startup error: {e}")
+
+for agent in AGENTS:
+    i = AGENTS.index(agent)
+    offset = i * 5
+    schedule.every().day.at(f"08:{offset:02d}").do(lambda a=agent: checkin(a))
+    schedule.every(3).hours.at(f":{offset:02d}").do(lambda a=agent: [
+        claim_red_packets(a), prediction_bet(a), daily_quests(a)])
+    schedule.every(6).hours.at(f":{offset:02d}").do(lambda a=agent: [
+        do_quests(a), forum_create_post(a), forum_vote(a), forum_engage(a), read_forum_digest(a)])
+
 print(f"[{datetime.now()}] SYSTEM: Agents running 24/7", flush=True)
 
 while True:
