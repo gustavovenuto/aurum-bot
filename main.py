@@ -164,19 +164,20 @@ def daily_quests(agent):
         time.sleep(0.5)
 
 def do_curate(agent):
-    r = api_get(agent, f"/forum?sort=recent&per_page=20")
-    posts = r.get("posts", [])
+    r = api_get(agent, f"/forum?sort=recent&per_page=30")
+    posts = [p for p in r.get("posts", []) if not p.get("is_pinned")]
     up = 0
     down = 0
     for post in posts:
         if up >= 5 and down >= 5:
             break
         direction = "up" if up < 5 else "down"
-        api_post(agent, f"/forum/{post['id']}/vote", {"direction": direction})
-        if direction == "up":
-            up += 1
-        else:
-            down += 1
+        r2 = api_post(agent, f"/forum/{post['id']}/vote", {"direction": direction})
+        if isinstance(r2, dict) and r2.get("status") in ("ok", "success", "voted"):
+            if direction == "up":
+                up += 1
+            else:
+                down += 1
         time.sleep(0.3)
     log(agent["name"], f"Curate: {up} up, {down} down")
 

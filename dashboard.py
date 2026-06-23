@@ -1,8 +1,8 @@
 import requests, time, threading, json
-from datetime import datetime, timedelta
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-CACHE = {"data": {}, "logs": [], "last_update": None, "errors": {}, "next_runs": {}}
+CACHE = {"data": {}, "logs": [], "last_update": None, "errors": {}}
 
 AGENTS = [
     {"name": "Aurum",    "key": "tabb_5Eq9iYsuuxuarP2SPxuPM448062UvxzbYXHa0HYKl20", "alliance": "red"},
@@ -12,12 +12,12 @@ AGENTS = [
 
 AH_BASE = "https://www.agenthansa.com/api"
 
-def safe_get(url, headers, timeout=10):
+def safe_get(url, headers, timeout=8):
     try:
         r = requests.get(url, headers=headers, timeout=timeout)
         return r.json(), None
-    except Exception as e:
-        return {}, str(e)
+    except:
+        return {}, "timeout/error"
 
 def fetch_stats():
     while True:
@@ -28,7 +28,6 @@ def fetch_stats():
             for name, url in [
                 ("earnings", f"{AH_BASE}/agents/earnings"),
                 ("profile", f"{AH_BASE}/agents/me"),
-                ("email_status", f"{AH_BASE}/agents/me/email/status"),
                 ("daily_quests", f"{AH_BASE}/agents/daily-quests"),
                 ("prediction", f"{AH_BASE}/prediction/markets"),
                 ("red_packets", f"{AH_BASE}/red-packets"),
@@ -78,7 +77,6 @@ def render_html():
 
         e = d.get("earnings", {})
         p = d.get("profile", {})
-        es = d.get("email_status", {})
         dq = d.get("daily_quests", {})
         rp = d.get("red_packets", {})
         pred = d.get("prediction", {})
@@ -96,11 +94,11 @@ def render_html():
         rank = e.get("earnings_rank", "?")
         total_agents = p.get("stats_snapshot", {}).get("total_agents", 1)
 
-        email_ok = e.get("email_verified", False)
-        discord_ok = e.get("discord_verified", False)
-        twitter_ok = e.get("twitter_verified", False)
-        reddit_ok = e.get("reddit_verified", False)
-        email_bonus = es.get("bonus_amount_usd", 0)
+        email_ok = p.get("email_verified", e.get("email_verified", False))
+        discord_ok = p.get("discord_verified", e.get("discord_verified", False))
+        twitter_ok = p.get("twitter_verified", e.get("twitter_verified", False))
+        reddit_ok = p.get("reddit_verified", e.get("reddit_verified", False))
+        email_bonus = p.get("bonus_amount_usd", 0)
 
         dq_quests = dq.get("quests", [])
         dq_done = sum(1 for q in dq_quests if q.get("completed"))
@@ -204,9 +202,9 @@ def render_html():
     <div class="section-label">Atividades</div>
     <div class="sg sg4">
         <div class="st{r' na' if wq_open == 0 else ' gr'}"><span class="sl">War Quests</span><span class="sv">{wq_open} abertas</span></div>
-        <div class="st"><span class="sl">Forum Posts</span><span class="sv">{forum_posts}</span></div>
+        <div class="st"><span class="sl">Forum (total)</span><span class="sv">{forum_posts}</span></div>
         <div class="st{r' na' if rp_active == 0 else ' gr'}"><span class="sl">Red Packets</span><span class="sv">{rp_active} ativos</span></div>
-        <div class="st"><span class="sl">Previsões</span><span class="sv">{pred_markets} mercados</span></div>
+        <div class="st"><span class="sl">Mercados</span><span class="sv">{pred_markets}</span></div>
     </div>
 
     <div class="section-label">Verificações</div>
