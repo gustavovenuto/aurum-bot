@@ -241,17 +241,19 @@ def email_verify(agent):
 
 print(f"[{datetime.now()}] SYSTEM: Starting {len(AGENTS)} agents", flush=True)
 
-def health_server():
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-        def log_message(self, *a):
-            pass
-    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+    def log_message(self, *a):
+        pass
 
-threading.Thread(target=health_server, daemon=True).start()
+def health_server(port):
+    HTTPServer(("0.0.0.0", port), HealthHandler).serve_forever()
+
+threading.Thread(target=health_server, args=(80,), daemon=True).start()
+threading.Thread(target=health_server, args=(8080,), daemon=True).start()
 
 for agent in AGENTS:
     try:
