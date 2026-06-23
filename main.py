@@ -15,6 +15,9 @@ AH_BASE = "https://www.agenthansa.com/api"
 def log(name, msg):
     print(f"[{datetime.now()}] {name}: {msg}", flush=True)
 
+def h(agent):
+    return {"Authorization": f"Bearer {agent['key']}"}
+
 def call_llm(prompt):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
     payload = {"contents": [{"parts": [{"text": prompt}]}],
@@ -31,69 +34,99 @@ def call_llm(prompt):
             data = r.json()
             if "candidates" in data and data["candidates"]:
                 return data["candidates"][0]["content"]["parts"][0]["text"]
-            log("LLM", f"no candidates: {str(data)[:200]}")
             time.sleep(5)
-        except Exception as e:
-            log("LLM", f"error: {e}")
+        except:
             time.sleep(5)
     return ""
 
 def solve_challenge(data):
-    q = data.get("question", "")
-    prompt = f"Answer ONLY with a single integer. No explanation. Question: {q}"
-    ans = call_llm(prompt)
-    nums = re.findall(r"-?\d+", ans)
+    prompt = f"Answer ONLY with a single integer. No explanation. Question: {data.get('question','')}"
+    nums = re.findall(r"-?\d+", call_llm(prompt))
     return int(nums[0]) if nums else 0
 
 def checkin(agent):
-    h = {"Authorization": f"Bearer {agent['key']}"}
-    r = requests.post(f"{AH_BASE}/agents/checkin", headers=h)
+    r = requests.post(f"{AH_BASE}/agents/checkin", headers=h(agent))
     data = r.json()
     if data.get("status") == "challenge_required":
-        ans = solve_challenge(data)
-        r = requests.post(f"{AH_BASE}/agents/checkin/verify", headers=h,
-            json={"challenge_id": data["challenge_id"], "challenge_answer": ans})
+        r = requests.post(f"{AH_BASE}/agents/checkin/verify", headers=h(agent),
+            json={"challenge_id": data["challenge_id"], "challenge_answer": solve_challenge(data)})
         data = r.json()
     log(agent["name"], f"Check-in: {data.get('points_earned', 'ok')}pts")
 
 def claim_red_packets(agent):
-    h = {"Authorization": f"Bearer {agent['key']}"}
     try:
-        packets = requests.get(f"{AH_BASE}/red-packets", headers=h, timeout=10).json()
+        packets = requests.get(f"{AH_BASE}/red-packets", headers=h(agent), timeout=10).json()
         for p in packets.get("data", []):
             if p.get("status") == "active":
-                r = requests.post(f"{AH_BASE}/red-packets/{p['id']}/join", headers=h)
+                r = requests.post(f"{AH_BASE}/red-packets/{p['id']}/join", headers=h(agent))
                 log(agent["name"], f"Red packet: {r.json().get('amount', 'claimed')}")
                 time.sleep(0.3)
     except Exception as e:
         log(agent["name"], f"Red packet error: {e}")
 
-def do_quests(agent):
-    h = {"Authorization": f"Bearer {agent['key']}"}
+def prediction_bet(agent):
     try:
-        quests = requests.get(f"{AH_BASE}/alliance-war/quests", headers=h, timeout=10).json()
+        r = requests.get(f"{AH_BASE}/prediction/markets", headers=h(agent), timeout=10)
+        markets = r.json().get("data", [])
+        if not markets:
+            return
+        m = markets[0]
+        r2 = requests.post(f"{AH_BASE}/prediction/markets/{m['id']}/bet", headers=h(agent),
+            json={"outcome": "yes", "stake": 0.50, "stake_currency": "usdc"})
+        log(agent["name"], f"Prediction: {r2.json().get('status', 'bet')}")
+    except Exception as e:
+        log(agent["name"], f"Prediction error: {e}")
+
+def daily_quests(agent):
+    try:
+        r = requests.get(f"{AH_BASE}/agents/daily-quests", headers=h(agent), timeout=10)
+        quests = r.json().get("data", [])
+        for q in quests:
+            content = call_llm(f"Quick answer for: {q.get('title','')}")
+            if content:
+                requests.post(f"{AH_BASE}/side-quests/submit", headers=h(agent),
+                    json={"quest_id": q.get("id"), "content": content})
+                time.sleep(0.3)
+        log(agent["name"], f"Daily quests: {len(quests)} done")
+    except Exception as e:
+        log(agent["name"], f"Daily quests error: {e}")
+
+def forum_vote(agent):
+    try:
+        posts = requests.get(f"{AH_BASE}/forum", headers=h(agent), timeout=10).json()
+        for post in posts.get("data", [])[:5]:
+            requests.post(f"{AH_BASE}/forum/{post.get('id')}/vote", headers=h(agent),
+                json={"direction": "up"})
+            time.sleep(0.2)
+        log(agent["name"], "Forum votes done")
+    except Exception as e:
+        log(agent["name"], f"Vote error: {e}")
+
+def do_quests(agent):
+    try:
+        quests = requests.get(f"{AH_BASE}/alliance-war/quests", headers=h(agent), timeout=10).json()
         done = 0
         for q in quests.get("data", []):
             if q.get("status") == "open" and done < 2:
                 content = call_llm(
-                    f"Write a 400-word quality response. Title: {q['title']}\nDescription: {q.get('description', '')}"
+                    f"Write a 500-word quality response. Title: {q['title']}\nDescription: {q.get('description', '')}"
                 )
-                if not content:
+                words = len(content.split())
+                if words < 350:
                     continue
                 r = requests.post(f"{AH_BASE}/alliance-war/quests/{q['id']}/submit",
-                    headers={**h, "Content-Type": "application/json"},
+                    headers={**h(agent), "Content-Type": "application/json"},
                     json={"content": content})
-                log(agent["name"], f"Quest: {r.json().get('status', 'submitted')}")
-                requests.post(f"{AH_BASE}/alliance-war/quests/{q['id']}/verify", headers=h)
+                log(agent["name"], f"Quest: {r.json().get('status', 'submitted')} ({words} words)")
+                requests.post(f"{AH_BASE}/alliance-war/quests/{q['id']}/verify", headers=h(agent))
                 done += 1
                 time.sleep(1)
     except Exception as e:
         log(agent["name"], f"Quest error: {e}")
 
 def forum_engage(agent):
-    h = {"Authorization": f"Bearer {agent['key']}"}
     try:
-        posts = requests.get(f"{AH_BASE}/forum", headers=h, timeout=10).json()
+        posts = requests.get(f"{AH_BASE}/forum", headers=h(agent), timeout=10).json()
         count = 0
         for post in posts.get("data", []):
             if count >= 3:
@@ -103,27 +136,44 @@ def forum_engage(agent):
             )
             if comment:
                 requests.post(f"{AH_BASE}/forum/{post['id']}/comment",
-                    headers=h, json={"content": comment})
+                    headers=h(agent), json={"content": comment})
                 count += 1
                 time.sleep(0.3)
     except Exception as e:
         log(agent["name"], f"Forum error: {e}")
 
+def email_verify(agent):
+    try:
+        r = requests.get(f"{AH_BASE}/agents/me/email/status", headers=h(agent), timeout=10)
+        if not r.json().get("verified"):
+            requests.post(f"{AH_BASE}/agents/me/email/start", headers=h(agent),
+                json={"email": "gugu.venutto@gmail.com"})
+            log(agent["name"], "Email verification sent (check inbox and click link)")
+    except:
+        pass
+
 def run_agent_tasks(agent):
     checkin(agent)
-    time.sleep(random.uniform(1, 5))
+    time.sleep(random.uniform(1, 3))
     claim_red_packets(agent)
-    time.sleep(random.uniform(1, 5))
+    time.sleep(random.uniform(1, 3))
+    prediction_bet(agent)
+    time.sleep(random.uniform(1, 3))
+    daily_quests(agent)
+    time.sleep(random.uniform(1, 3))
     do_quests(agent)
-    time.sleep(random.uniform(1, 5))
+    time.sleep(random.uniform(1, 3))
+    forum_vote(agent)
+    time.sleep(random.uniform(1, 3))
     forum_engage(agent)
 
-log("SYSTEM", f"Starting {len(AGENTS)} agents") 
+log("SYSTEM", f"Starting {len(AGENTS)} agents")
 
 for agent in AGENTS:
     try:
         log(agent["name"], "Running initial tasks...")
         run_agent_tasks(agent)
+        email_verify(agent)
     except Exception as e:
         log(agent["name"], f"Initial error: {e}")
 
@@ -132,8 +182,8 @@ for agent in AGENTS:
     offset = i * 5
     schedule.every().day.at(f"08:{offset:02d}").do(lambda a=agent: checkin(a))
     schedule.every(3).hours.at(f":{offset:02d}").do(lambda a=agent: claim_red_packets(a))
-    schedule.every(4).hours.at(f":{offset:02d}").do(lambda a=agent: do_quests(a))
-    schedule.every(6).hours.at(f":{offset:02d}").do(lambda a=agent: forum_engage(a))
+    schedule.every(4).hours.at(f":{offset:02d}").do(lambda a=agent: [prediction_bet(a), daily_quests(a)])
+    schedule.every(6).hours.at(f":{offset:02d}").do(lambda a=agent: [do_quests(a), forum_vote(a), forum_engage(a)])
 
 def health_server():
     class H(BaseHTTPRequestHandler):
@@ -152,6 +202,5 @@ while True:
     try:
         schedule.run_pending()
         time.sleep(60)
-    except Exception as e:
-        log("SYSTEM", f"Loop: {e}")
+    except:
         time.sleep(60)
