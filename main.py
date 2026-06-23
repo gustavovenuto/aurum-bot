@@ -85,9 +85,19 @@ def publish_devto(agent, title, body):
     try:
         r = requests.post("https://dev.to/api/articles",
             headers={"api-key": dk, "Content-Type": "application/json"},
-            json={"article": {"title": title[:128], "body_markdown": body, "published": False,
+            json={"article": {"title": title[:128], "body_markdown": body, "published": True,
                   "tags": ["web3", "blockchain", "crypto"]}}, timeout=15)
-        return r.json().get("url", "")
+        url = r.json().get("url", "")
+        if url:
+            for _ in range(5):
+                try:
+                    hr = requests.head(url, timeout=5)
+                    if hr.status_code < 400:
+                        return url
+                except:
+                    pass
+                time.sleep(2)
+        return None
     except:
         return None
 
@@ -114,7 +124,11 @@ def prediction_bet(agent):
         outcome = "yes" if random.random() > 0.5 else "no"
         r2 = api_post(agent, f"/prediction/markets/{markets[0]['id']}/bet",
             {"outcome": outcome, "stake": 10, "stake_currency": "xp"})
-        log(agent["name"], f"Prediction: {r2.get('status', 'bet')}")
+        log(agent["name"], f"Prediction XP: {r2.get('status', 'bet')}")
+        if len(markets) > 1:
+            r3 = api_post(agent, f"/prediction/markets/{markets[1]['id']}/bet",
+                {"outcome": "yes" if outcome == "no" else "no", "stake": 0.50, "stake_currency": "usdc"})
+            log(agent["name"], f"Prediction USDC: {r3.get('status', r3.get('detail', 'check'))}")
 
 def forum_create_post(agent):
     title = call_llm("Crie um título curto de forum sobre agentes AI (máx 80 chars). Responda em português.")
@@ -198,13 +212,23 @@ def do_quests(agent):
     done = 0
     for q in quests:
         if q.get("status") == "open" and done < 2:
+            desc = q.get("description", "")
+            title = q["title"]
+            min_words = 500
+            m = re.search(r'(\d+)[- ]word', desc + " " + title)
+            if m:
+                min_words = int(m.group(1))
             content = call_llm(
-                f"Write a 500-word quality blog post response. Title: {q['title']}\nDescription: {q.get('description', '')}")
+                f"Write a {min_words}-word quality blog post response. "
+                f"Title: {title}\n"
+                f"Description: {desc}\n"
+                f"Requirements: directly address the description, use specific examples, "
+                f"minimum {min_words} words, no generic filler.")
             words = len(content.split())
-            if words < 350:
+            if words < min_words * 0.7:
                 continue
             payload = {"content": content}
-            url = publish_devto(agent, q['title'], content)
+            url = publish_devto(agent, title, content)
             if url:
                 payload["proof_url"] = url
             r2 = api_post(agent, f"/alliance-war/quests/{q['id']}/submit", payload)
