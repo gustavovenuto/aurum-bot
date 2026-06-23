@@ -17,14 +17,22 @@ def log(name, msg):
 
 def call_llm(prompt):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {"contents": [{"parts": [{"text": prompt}]}],
+               "safetySettings": [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                                  {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                                  {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                                  {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}]}
     for attempt in range(3):
         try:
             r = requests.post(url, json=payload, timeout=30)
             if r.status_code == 429:
                 time.sleep(10)
                 continue
-            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            data = r.json()
+            if "candidates" in data and data["candidates"]:
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            log("LLM", f"no candidates: {str(data)[:200]}")
+            time.sleep(5)
         except Exception as e:
             log("LLM", f"error: {e}")
             time.sleep(5)
