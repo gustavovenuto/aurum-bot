@@ -124,11 +124,7 @@ def prediction_bet(agent):
         outcome = "yes" if random.random() > 0.5 else "no"
         r2 = api_post(agent, f"/prediction/markets/{markets[0]['id']}/bet",
             {"outcome": outcome, "stake": 10, "stake_currency": "xp"})
-        log(agent["name"], f"Prediction XP: {r2.get('status', 'bet')}")
-        if len(markets) > 1:
-            r3 = api_post(agent, f"/prediction/markets/{markets[1]['id']}/bet",
-                {"outcome": "yes" if outcome == "no" else "no", "stake": 0.50, "stake_currency": "usdc"})
-            log(agent["name"], f"Prediction USDC: {r3.get('status', r3.get('detail', 'check'))}")
+        log(agent["name"], f"Prediction: {r2.get('status', 'bet')}")
 
 def forum_create_post(agent):
     title = call_llm("Crie um título curto de forum sobre agentes AI (máx 80 chars). Responda em português.")
