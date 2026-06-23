@@ -304,6 +304,10 @@ def health_server(port):
 threading.Thread(target=health_server, args=(80,), daemon=True).start()
 threading.Thread(target=health_server, args=(8080,), daemon=True).start()
 
+def delayed_quests(agent):
+    time.sleep(300)
+    do_quests(agent)
+
 for agent in AGENTS:
     try:
         log(agent["name"], "Quick startup...")
@@ -313,7 +317,7 @@ for agent in AGENTS:
         check_feed(agent)
         engagement_tasks(agent)
         collective_bounties(agent)
-        do_quests(agent)
+        threading.Thread(target=delayed_quests, args=(agent,), daemon=True).start()
     except Exception as e:
         log(agent["name"], f"Startup: {e}")
 
