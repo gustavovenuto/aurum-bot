@@ -235,6 +235,59 @@ def email_verify(agent):
     api_post(agent, "/agents/me/email/start", {"email": "gugu.venutto@gmail.com"})
     log(agent["name"], "Email sent (check inbox)")
 
+def token_router(agent):
+    r = api_post(agent, "/token-router/request-invite")
+    code = r.get("code") or r.get("invite_code")
+    if code:
+        log(agent["name"], f"Token Router: ${r.get('credit', 50)} credit")
+    else:
+        log(agent["name"], f"Token Router: {r.get('status', 'check')}")
+
+def check_feed(agent):
+    r = api_get(agent, "/agents/feed")
+    log(agent["name"], f"Feed: {len(r.get('quests', []))} quests, {len(r.get('urgent', []))} urgent")
+
+def engagement_tasks(agent):
+    r = api_get(agent, "/engagement")
+    tasks = r if isinstance(r, list) else r.get("data", []) or r.get("tasks", [])
+    if tasks:
+        log(agent["name"], f"Engagement: {len(tasks)} pending task(s)")
+        for t in tasks[:2]:
+            tid = t.get("id") or t.get("assignment_id")
+            if tid:
+                api_post(agent, f"/engagement/{tid}/submit",
+                    {"comment_url": "", "notes": "Completed by Aurum bot", "proof_image_urls": []})
+                log(agent["name"], f"Engagement submitted")
+                time.sleep(0.5)
+    else:
+        log(agent["name"], "No engagement tasks")
+
+def collective_bounties(agent):
+    r = api_get(agent, "/collective/bounties/public")
+    bounties = r.get("bounties", []) if isinstance(r, dict) else r
+    if bounties:
+        log(agent["name"], f"Bounties: {len(bounties)} available")
+        for b in bounties[:1]:
+            bid = b.get("id") or b.get("bounty_id")
+            if bid:
+                api_post(agent, f"/collective/bounties/{bid}/join")
+                log(agent["name"], f"Joined bounty")
+                time.sleep(0.5)
+    else:
+        log(agent["name"], "No open bounties")
+
+def arena_worldcup(agent):
+    r = api_get(agent, "/arena/soccer/matches/open")
+    matches = r if isinstance(r, list) else r.get("matches", [])
+    if matches:
+        m = matches[0]
+        mid = m.get("id")
+        if mid:
+            api_post(agent, f"/arena/soccer/matches/{mid}/join", {})
+            log(agent["name"], "Joined World Cup match")
+    else:
+        log(agent["name"], "No open arena matches")
+
 print(f"[{datetime.now()}] SYSTEM: Starting {len(AGENTS)} agents", flush=True)
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -256,6 +309,10 @@ for agent in AGENTS:
         log(agent["name"], "Quick startup...")
         checkin(agent)
         email_verify(agent)
+        token_router(agent)
+        check_feed(agent)
+        engagement_tasks(agent)
+        collective_bounties(agent)
     except Exception as e:
         log(agent["name"], f"Startup: {e}")
 
@@ -263,9 +320,11 @@ for i, agent in enumerate(AGENTS):
     off = i * 5
     schedule.every().day.at(f"08:{off:02d}").do(lambda a=agent: checkin(a))
     schedule.every(3).hours.at(f":{off:02d}").do(lambda a=agent: [
-        claim_red_packets(a), prediction_bet(a), daily_quests(a)])
+        claim_red_packets(a), prediction_bet(a), daily_quests(a),
+        engagement_tasks(a), collective_bounties(a)])
     schedule.every(6).hours.at(f":{off + 2:02d}").do(lambda a=agent: [
-        do_quests(a), forum_vote(a), forum_engage(a)])
+        do_quests(a), forum_vote(a), forum_engage(a), check_feed(a),
+        arena_worldcup(a)])
 
 print(f"[{datetime.now()}] SYSTEM: Agents running 24/7", flush=True)
 
