@@ -12,7 +12,7 @@ AGENTS = [
 
 AH_BASE = "https://www.agenthansa.com/api"
 
-def safe_get(url, headers, timeout=8):
+def safe_get(url, headers, timeout=6):
     try:
         r = requests.get(url, headers=headers, timeout=timeout)
         return r.json(), None
@@ -35,14 +35,13 @@ def fetch_stats():
                 ("war_quests", f"{AH_BASE}/alliance-war/quests"),
             ]:
                 result, error = safe_get(url, hdr)
-                data[name] = result
-                if error:
+                if not error:
+                    data[name] = result
+                else:
+                    data[name] = CACHE["data"].get(a["name"], {}).get(name, {})
                     errs[name] = error
             CACHE["data"][a["name"]] = data
-            if errs:
-                CACHE["errors"][a["name"]] = errs
-            elif a["name"] in CACHE["errors"]:
-                del CACHE["errors"][a["name"]]
+            CACHE["errors"][a["name"]] = errs if errs else {}
         CACHE["last_update"] = datetime.now().isoformat()
         CACHE["logs"].append(f"[{CACHE['last_update']}] Updated {len(AGENTS)} bots")
         if len(CACHE["logs"]) > 100:
