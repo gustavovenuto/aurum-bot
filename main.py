@@ -4,6 +4,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 
+DEVTO_KEYS = {
+    "Aurum":    os.environ.get("DEVTO_KEY_AURUM"),
+    "Aurum-02": os.environ.get("DEVTO_KEY_AURUM02"),
+    "Aurum-03": os.environ.get("DEVTO_KEY_AURUM03"),
+}
+
 AGENTS = [
     {"name": "Aurum",   "key": "tabb_5Eq9iYsuuxuarP2SPxuPM448062UvxzbYXHa0HYKl20", "alliance": "red"},
     {"name": "Aurum-02","key": "tabb_LdisJ3cU8016BbavZ9x8He1-ihBIejMibVZjWSaZpG8", "alliance": "red"},
@@ -43,6 +49,29 @@ def solve_challenge(data):
     prompt = f"Answer ONLY with a single integer. No explanation. Question: {data.get('question','')}"
     nums = re.findall(r"-?\d+", call_llm(prompt))
     return int(nums[0]) if nums else 0
+
+def publish_devto(agent, title, body):
+    dk = DEVTO_KEYS.get(agent["name"])
+    if not dk:
+        return None
+    slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
+    try:
+        r = requests.post("https://dev.to/api/articles",
+            headers={"api-key": dk, "Content-Type": "application/json"},
+            json={"article": {
+                "title": title[:128],
+                "body_markdown": body,
+                "published": True,
+                "tags": ["web3", "blockchain", "crypto"],
+                "canonical_url": f"https://dev.to/{slug}"
+            }}, timeout=15)
+        url = r.json().get("url", "")
+        if url:
+            log(agent["name"], f"dev.to: {url}")
+        return url
+    except Exception as e:
+        log(agent["name"], f"dev.to error: {e}")
+    return None
 
 def checkin(agent):
     r = requests.post(f"{AH_BASE}/agents/checkin", headers=h(agent))
@@ -114,10 +143,14 @@ def do_quests(agent):
                 words = len(content.split())
                 if words < 350:
                     continue
+                payload = {"content": content}
+                url = publish_devto(agent, q['title'], content)
+                if url:
+                    payload["proof_url"] = url
                 r = requests.post(f"{AH_BASE}/alliance-war/quests/{q['id']}/submit",
                     headers={**h(agent), "Content-Type": "application/json"},
-                    json={"content": content})
-                log(agent["name"], f"Quest: {r.json().get('status', 'submitted')} ({words} words)")
+                    json=payload)
+                log(agent["name"], f"Quest: {r.json().get('status', 'submitted')} ({words} words{' + dev.to' if url else ''})")
                 requests.post(f"{AH_BASE}/alliance-war/quests/{q['id']}/verify", headers=h(agent))
                 done += 1
                 time.sleep(1)
