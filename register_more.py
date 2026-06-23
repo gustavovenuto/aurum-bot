@@ -1,6 +1,6 @@
-import requests, re, time
+import requests, re, time, os
 
-GEMINI_KEY = "AIzaSyBp_jNBc6yrIJGXD1gAwZyHJUfRzdyoIu4"
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
 results = {}
 quota = {"used": 0, "max": 1500}
 

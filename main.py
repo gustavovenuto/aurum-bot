@@ -54,7 +54,7 @@ def api_post(agent, path, data=None, retries=3):
                 time.sleep(3 * (i + 1))
     return {}
 
-def call_llm(prompt, retries=3):
+def call_llm(prompt, retries=2):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
     payload = {"contents": [{"parts": [{"text": prompt}]}],
                "safetySettings": [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -70,7 +70,9 @@ def call_llm(prompt, retries=3):
             data = r.json()
             if "candidates" in data and data["candidates"]:
                 return data["candidates"][0]["content"]["parts"][0]["text"]
-        except:
+            log("LLM", f"Unexpected: {data.get('error', {}).get('message', str(data))}")
+        except Exception as e:
+            log("LLM", f"Error: {e}")
             time.sleep(5)
     return ""
 

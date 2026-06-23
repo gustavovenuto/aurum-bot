@@ -1,6 +1,6 @@
-import requests, re, time, sys, json
+import requests, re, time, sys, json, os
 
-GEMINI_KEY = "AIzaSyBp_jNBc6yrIJGXD1gAwZyHJUfRzdyoIu4"
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
 results = {}
 
 for i in range(2, 21):

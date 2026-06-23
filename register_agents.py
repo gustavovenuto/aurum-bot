@@ -1,6 +1,6 @@
-import requests, re, time, sys
+import requests, re, time, sys, os
 
-GEMINI_KEY = "AIzaSyBp_jNBc6yrIJGXD1gAwZyHJUfRzdyoIu4"
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
 START = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 END = int(sys.argv[2]) if len(sys.argv) > 2 else 20
 
