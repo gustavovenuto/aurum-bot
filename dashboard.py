@@ -110,14 +110,14 @@ def render_html():
 
         bonus_bal = s(p.get("bonus_balance_usd", 0))
         pred_bal = s(p.get("prediction_balance_usd", 0))
-        pred_markets = len(pred.get("data", []))
+        pred_markets = len(pred.get("markets", []))
         wallet = p.get("wallet_address")
         fluxa = p.get("fluxa_agent_id")
         rank_pct = round((1 - s(rank) / s(total_agents)) * 100, 1) if s(total_agents) > 0 else 0
 
-        forum_posts = len(forum.get("data", []))
-        rp_active = sum(1 for pkt in rp.get("data", []) if pkt.get("status") == "active")
-        wq_open = sum(1 for q in wq.get("data", []) if q.get("status") == "open")
+        forum_posts = len(forum.get("posts", []))
+        rp_active = len(rp.get("active", []))
+        wq_open = sum(1 for q in wq.get("quests", []) if q.get("status") == "open")
 
         totals["usdc"] += total
         totals["xp"] += s(xp)
