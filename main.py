@@ -6,6 +6,7 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
 LOCK_FILE = "/data/aurum.lock"
 EMAIL_CACHE_FILE = "/data/email_verified.json"
+os.makedirs("/data", exist_ok=True)
 if os.path.exists(LOCK_FILE):
     sys.exit(0)
 open(LOCK_FILE, "w").close()
